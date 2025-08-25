@@ -38,14 +38,6 @@ jobs:
       - name: Run bot
         run: |
           poetry run python main.py --mode test_questions
-      - name: Create a data file
-        run: echo "Permanent Data test" > data.txt
-
-      - name: Upload data artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-data-artifact # The name of your artifact
-          path: data.txt # The path to the file or directory to upload
 
         # this reads the environment variables from the github repository.
         # Store under Settings --> Secrets and variables --> Actions
@@ -58,3 +50,15 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+
+          
+      - name: Create a data file
+        run: echo "Permanent Data test" > data.txt
+
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-data-artifact # The name of your artifact
+          path: data.txt # The path to the file or directory to upload
+
+        
