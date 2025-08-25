@@ -456,6 +456,7 @@ if __name__ == "__main__":
             question = MetaculusApi.get_question_by_url(question_url)
             if question.question_type == "binary":
                 if question.already_forecasted:
+                    logger.info(question.num_predictions)
                     logger.info("Updating the prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                     MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
                 else:
