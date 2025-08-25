@@ -371,6 +371,29 @@ class FallTemplateBot2025(ForecastBot):
                 f"The outcome can not be lower than {lower_bound_number}."
             )
         return upper_bound_message, lower_bound_message
+    
+    @staticmethod
+    def load_data_from_file(filepath="latest_prediction_dates.txt") -> dict:
+        data = {}
+        try:
+            with open(filepath, "r") as f:
+                for line in f:
+                    # Skip empty lines
+                    if line.strip():
+                        # Split only on the first colon to handle values that might contain colons
+                        key, value = line.strip().split(":", 1)
+                        data[key] = value
+        except FileNotFoundError:
+            # If the file doesn't exist, just return an empty dictionary
+            logger.error(f"'{filepath}' not found. Starting with an empty dataset.")
+        return data
+
+    @staticmethod
+    def save_data_to_file(data: dict, filepath="latest_prediction_dates.txt"):
+        with open(filepath, "w") as f:
+            for key, value in data.items():
+                f.write(f"{key}:{value}\n")
+        print(f"Successfully saved data to '{filepath}'.")
 
 
 if __name__ == "__main__":
@@ -445,23 +468,30 @@ if __name__ == "__main__":
         )
     elif run_mode == "test_questions":
         EXAMPLE_QUESTIONS = [
-            "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
-            "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",  # Total Yield of Nuc Det 1000MT by 2050 - Binary
-            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
-            "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
-            "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
+            "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # 578: Human Extinction - Binary
+            "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",  # 8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
+            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # 14333: Age of Oldest Human - Numeric
+            "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # 22427: Number of New Leading AI Labs - Multiple Choice
+            "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # 38880: Number of US Labor Strikes Due to AI in 2029 - Discrete
         ]
+
+        prediction_date_dict = FallTemplateBot2025.load_data_from_file("latest_prediction_dates.txt")
+        today = date.today().isoformat()
 
         for question_url in EXAMPLE_QUESTIONS:
             question = MetaculusApi.get_question_by_url(question_url)
             if question.question_type == "binary":
                 if question.already_forecasted:
-                    logger.info(question.num_predictions)
+                    if (today == prediction_date_dict.get(str(question.id_of_question))):
+                        logger.info("Already made a prediction today on question " + str(question.id_of_question) + ": " + question.question_text)
+                        continue
                     logger.info("Updating the prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                     MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
+                    prediction_date_dict[str(question.id_of_question)] = today
                 else:
                     logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                     MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
+                    prediction_date_dict[str(question.id_of_question)] = today
                 
             elif question.question_type == "numeric":
                 continue
@@ -474,11 +504,8 @@ if __name__ == "__main__":
                 continue
             elif question.question_type == "discrete":
                 continue
-
-        with open("data.txt", "w") as f:
-            f.write(date.today().isoformat())
-
-        f.close()
+        
+        FallTemplateBot2025.save_data_to_file(prediction_date_dict, "latest_prediction_dates.txt")
 
         # Example questions are a good way to test the bot's performance on a single question
     #     EXAMPLE_QUESTIONS = [
