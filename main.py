@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Literal
 
 from forecasting_tools import (
@@ -474,6 +474,11 @@ if __name__ == "__main__":
                 continue
             elif question.question_type == "discrete":
                 continue
+
+        with open("data.txt", "w") as f:
+            f.write(date.today().isoformat())
+
+        f.close()
 
         # Example questions are a good way to test the bot's performance on a single question
     #     EXAMPLE_QUESTIONS = [
