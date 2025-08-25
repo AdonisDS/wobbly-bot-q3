@@ -459,20 +459,31 @@ if __name__ == "__main__":
         # )
 
         # TEST
+        def __default_numeric_values():
+            return [round(0 + i * 0.00005, 5) for i in range(201)]
+        
+        def __default_discrete_values():
+            return [round(0 + i * 0.00125, 5) for i in range(9)]
+
         for i, url in enumerate(EXAMPLE_QUESTIONS):
             q = MetaculusApi.get_question_by_url(url)
             qid = q.id_of_question
             if i == 0:
                 MetaculusApi.post_binary_question_prediction(qid, 0.5)
             elif i == 1:
-                values = [round(0 + i * 0.00005, 5) for i in range(201)]
-                print(values)
                 MetaculusApi.post_numeric_question_prediction(
                     qid,
-                    values
+                    __default_numeric_values()
                 )
-            else:
-                break
+            elif i == 2:
+                pass
+                # MetaculusApi.post_multiple_choice_question_prediction(
+                #     qid,
+                #     _
+                # )
+            elif i == 3:
+                MetaculusApi.post_numeric_question_prediction(qid, __default_discrete_values())
+                
 
         # MetaculusApi.post_numeric_question_prediction()
     template_bot.log_report_summary(forecast_reports)
