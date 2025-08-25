@@ -441,6 +441,7 @@ if __name__ == "__main__":
             )
         )
     elif run_mode == "test_questions":
+
         # Example questions are a good way to test the bot's performance on a single question
         EXAMPLE_QUESTIONS = [
             "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
@@ -448,12 +449,26 @@ if __name__ == "__main__":
             "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
             "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
         ]
-        template_bot.skip_previously_forecasted_questions = False
-        questions = [
-            MetaculusApi.get_question_by_url(question_url)
-            for question_url in EXAMPLE_QUESTIONS
-        ]
-        forecast_reports = asyncio.run(
-            template_bot.forecast_questions(questions, return_exceptions=True)
-        )
+        # template_bot.skip_previously_forecasted_questions = False
+        # questions = [
+        #     MetaculusApi.get_question_by_url(question_url)
+        #     for question_url in EXAMPLE_QUESTIONS
+        # ]
+        # forecast_reports = asyncio.run(
+        #     template_bot.forecast_questions(questions, return_exceptions=True)
+        # )
+
+        # TEST
+        for i, url in enumerate(EXAMPLE_QUESTIONS):
+            q = MetaculusApi.get_question_by_url(url)
+            qid = q.id_of_question
+            if i == 0:
+                MetaculusApi.post_binary_question_prediction(qid, 0.5)
+            elif i == 1:
+                break
+
+
+        # MetaculusApi.post_numeric_question_prediction()
+        # MetaculusApi.post_multiple_choice_question_prediction()
+        # MetaculusApi.post_numeric_question_prediction()
     template_bot.log_report_summary(forecast_reports)
