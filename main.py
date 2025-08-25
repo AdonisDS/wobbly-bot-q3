@@ -465,10 +465,14 @@ if __name__ == "__main__":
             if i == 0:
                 MetaculusApi.post_binary_question_prediction(qid, 0.5)
             elif i == 1:
+                values = [round(0 + i * 0.00005, 5) for i in range(201)]
+                print(values)
+                MetaculusApi.post_numeric_question_prediction(
+                    qid,
+                    values
+                )
+            else:
                 break
 
-
-        # MetaculusApi.post_numeric_question_prediction()
-        # MetaculusApi.post_multiple_choice_question_prediction()
         # MetaculusApi.post_numeric_question_prediction()
     template_bot.log_report_summary(forecast_reports)
