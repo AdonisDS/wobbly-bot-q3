@@ -453,16 +453,19 @@ if __name__ == "__main__":
 
         for question_url in EXAMPLE_QUESTIONS:
             question = MetaculusApi.get_question_by_url(question_url)
-            if isinstance(question, BinaryQuestion):
+            if question.question_type == "binary":
+            # if isinstance(question, BinaryQuestion):
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
-            elif isinstance(question, NumericQuestion):
+            elif question.question_type == "numeric":
                 continue
-            elif isinstance(question, MultipleChoiceQuestion):
+            elif question.question_type == "multiple_choice":
                 num_options = len(question.options)
                 probability_per_option = 1.0 / num_options
                 probabilities: dict[str, float] = dict.fromkeys(question.options, probability_per_option)   
                 MetaculusApi.post_multiple_choice_question_prediction(question.id_of_question, probabilities)
-            elif isinstance(question, DiscreteQuestion):
+            elif question.question_type == "date":
+                continue
+            elif question.question_type == "discrete":
                 continue
 
         # Example questions are a good way to test the bot's performance on a single question
