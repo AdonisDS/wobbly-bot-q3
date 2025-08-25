@@ -51,14 +51,8 @@ jobs:
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
 
-          
-      - name: Create a data file
-        run: echo "Permanent Data test" > data.txt
-
       - name: Upload data artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my-data-artifact # The name of your artifact
-          path: data.txt # The path to the file or directory to upload
-
-        
+          name: my-data-artifact
+          path: data.txt      
