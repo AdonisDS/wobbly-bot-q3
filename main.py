@@ -3,6 +3,8 @@ import asyncio
 import logging
 from datetime import datetime, date
 from typing import Literal
+from typing import Any, Coroutine, Literal, Sequence, TypeVar, cast, overload
+import time
 
 from forecasting_tools import (
     AskNewsSearcher,
@@ -21,10 +23,12 @@ from forecasting_tools import (
     SmartSearcher,
     clean_indents,
     structure_output,
+    ForecastReport,
+    MonetaryCostManager
 )
 
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -110,63 +114,66 @@ class FallTemplateBot2025(ForecastBot):
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
 
     async def run_research(self, question: MetaculusQuestion) -> str:
-        async with self._concurrency_limiter:
-            research = ""
-            researcher = self.get_llm("researcher")
+        return "Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section." \
+        " If you want to disagree, refer to these probabilities and explain why you think it's different"
 
-            prompt = clean_indents(
-                f"""
-                You are an assistant to a superforecaster.
-                The superforecaster will give you a question they intend to forecast on.
-                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
-                You do not produce forecasts yourself.
+        # async with self._concurrency_limiter:
+        #     research = ""
+        #     researcher = self.get_llm("researcher")
 
-                Question:
-                {question.question_text}
+        #     prompt = clean_indents(
+        #         f"""
+        #         You are an assistant to a superforecaster.
+        #         The superforecaster will give you a question they intend to forecast on.
+        #         To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+        #         You do not produce forecasts yourself.
 
-                This question's outcome will be determined by the specific criteria below:
-                {question.resolution_criteria}
+        #         Question:
+        #         {question.question_text}
 
-                {question.fine_print}
-                """
-            )
+        #         This question's outcome will be determined by the specific criteria below:
+        #         {question.resolution_criteria}
 
-            if isinstance(researcher, GeneralLlm):
-                research = await researcher.invoke(prompt)
-            elif researcher == "asknews/news-summaries":
-                research = await AskNewsSearcher().get_formatted_news_async(
-                    question.question_text
-                )
-            elif researcher == "asknews/deep-research/medium-depth":
-                research = await AskNewsSearcher().get_formatted_deep_research(
-                    question.question_text,
-                    sources=["asknews", "google"],
-                    search_depth=2,
-                    max_depth=4,
-                )
-            elif researcher == "asknews/deep-research/high-depth":
-                research = await AskNewsSearcher().get_formatted_deep_research(
-                    question.question_text,
-                    sources=["asknews", "google"],
-                    search_depth=4,
-                    max_depth=6,
-                )
-            elif researcher.startswith("smart-searcher"):
-                model_name = researcher.removeprefix("smart-searcher/")
-                searcher = SmartSearcher(
-                    model=model_name,
-                    temperature=0,
-                    num_searches_to_run=2,
-                    num_sites_per_search=10,
-                    use_advanced_filters=False,
-                )
-                research = await searcher.invoke(prompt)
-            elif not researcher or researcher == "None":
-                research = ""
-            else:
-                research = await self.get_llm("researcher", "llm").invoke(prompt)
-            logger.info(f"Found Research for URL {question.page_url}:\n{research}")
-            return research
+        #         {question.fine_print}
+        #         """
+        #     )
+
+        #     if isinstance(researcher, GeneralLlm):
+        #         research = await researcher.invoke(prompt)
+        #     elif researcher == "asknews/news-summaries":
+        #         research = await AskNewsSearcher().get_formatted_news_async(
+        #             question.question_text
+        #         )
+        #     elif researcher == "asknews/deep-research/medium-depth":
+        #         research = await AskNewsSearcher().get_formatted_deep_research(
+        #             question.question_text,
+        #             sources=["asknews", "google"],
+        #             search_depth=2,
+        #             max_depth=4,
+        #         )
+        #     elif researcher == "asknews/deep-research/high-depth":
+        #         research = await AskNewsSearcher().get_formatted_deep_research(
+        #             question.question_text,
+        #             sources=["asknews", "google"],
+        #             search_depth=4,
+        #             max_depth=6,
+        #         )
+        #     elif researcher.startswith("smart-searcher"):
+        #         model_name = researcher.removeprefix("smart-searcher/")
+        #         searcher = SmartSearcher(
+        #             model=model_name,
+        #             temperature=0,
+        #             num_searches_to_run=2,
+        #             num_sites_per_search=10,
+        #             use_advanced_filters=False,
+        #         )
+        #         research = await searcher.invoke(prompt)
+        #     elif not researcher or researcher == "None":
+        #         research = ""
+        #     else:
+        #         research = await self.get_llm("researcher", "llm").invoke(prompt)
+        #     logger.info(f"Found Research for URL {question.page_url}:\n{research}")
+        #     return research
 
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
@@ -186,10 +193,6 @@ class FallTemplateBot2025(ForecastBot):
             {question.resolution_criteria}
 
             {question.fine_print}
-
-
-            Your research assistant says:
-            {research}
 
             Today is {datetime.now().strftime("%Y-%m-%d")}.
 
@@ -395,6 +398,97 @@ class FallTemplateBot2025(ForecastBot):
                 f.write(f"{key}:{value}\n")
         print(f"Successfully saved data to '{filepath}'.")
 
+    async def forecast_question(
+            self,
+            question: MetaculusQuestion,
+            return_exceptions: bool = False,
+        ) -> list[ForecastReport] | list[ForecastReport | BaseException]:
+            reports: list[ForecastReport | BaseException] = []
+            reports = await asyncio.gather(
+                *[
+                    self._run_individual_question_with_error_propagation(question)
+                ],
+                return_exceptions=return_exceptions,
+            )
+            if self.folder_to_save_reports_to:
+                non_exception_reports = [
+                    report for report in reports if not isinstance(report, BaseException)
+                ]
+                questions_as_list = list(questions)
+                file_path = self._create_file_path_to_save_to(questions_as_list)
+                ForecastReport.save_object_list_to_file_path(
+                    non_exception_reports, file_path
+                )
+            return reports
+    
+    async def run_individual_question(
+        self, question: MetaculusQuestion
+    ) -> ForecastReport:
+        notepad = await self._initialize_notepad(question)
+        async with self._note_pad_lock:
+            self._note_pads.append(notepad)
+        with MonetaryCostManager() as cost_manager:
+            start_time = time.time()
+            prediction_tasks = [
+                self._research_and_make_predictions(question)
+                for _ in range(self.research_reports_per_question)
+            ]
+            valid_prediction_set, research_errors, exception_group = (
+                await self._gather_results_and_exceptions(prediction_tasks)  # type: ignore
+            )
+            if research_errors:
+                logger.warning(
+                    f"Encountered errors while researching: {research_errors}"
+                )
+            if len(valid_prediction_set) == 0:
+                assert exception_group, "Exception group should not be None"
+                self._reraise_exception_with_prepended_message(
+                    exception_group,
+                    f"All {self.research_reports_per_question} research reports/predictions failed",
+                )
+            prediction_errors = [
+                error
+                for prediction_set in valid_prediction_set
+                for error in prediction_set.errors
+            ]
+            all_errors = research_errors + prediction_errors
+
+            report_type = DataOrganizer.get_report_type_for_question_type(
+                type(question)
+            )
+            all_predictions = [
+                reasoned_prediction.prediction_value
+                for research_prediction_collection in valid_prediction_set
+                for reasoned_prediction in research_prediction_collection.predictions
+            ]
+            aggregated_prediction = await self._aggregate_predictions(
+                all_predictions,
+                question,
+            )
+            end_time = time.time()
+            time_spent_in_minutes = (end_time - start_time) / 60
+            final_cost = cost_manager.current_usage
+
+        unified_explanation = self._create_unified_explanation(
+            question,
+            valid_prediction_set,
+            aggregated_prediction,
+            final_cost,
+            time_spent_in_minutes,
+        )
+        report = report_type(
+            question=question,
+            prediction=aggregated_prediction,
+            explanation=unified_explanation,
+            price_estimate=final_cost,
+            minutes_taken=time_spent_in_minutes,
+            errors=all_errors,
+        )
+        if self.publish_reports_to_metaculus:
+            await report.publish_report_to_metaculus()
+        await self._remove_notepad(question)
+        return report
+
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -427,22 +521,22 @@ if __name__ == "__main__":
 
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=5,
+        predictions_per_research_report=1,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
-        skip_previously_forecasted_questions=True,
-        # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
-        #     "default": GeneralLlm(
-        #         model="openrouter/openai/gpt-4o", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
-        #         temperature=0.3,
-        #         timeout=40,
-        #         allowed_tries=2,
-        #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
-        #     "researcher": "asknews/deep-research/low",
-        #     "parser": "openai/gpt-4o-mini",
-        # },
+        skip_previously_forecasted_questions=False,
+        llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
+            "default": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                temperature=0.3,
+                timeout=40,
+                allowed_tries=2,
+            ),
+            "summarizer": "openrouter/openai/gpt-4o-mini",
+            "researcher": "openrouter/openai/gpt-4o-mini",
+            "parser": "openrouter/openai/gpt-4o-mini",
+        },
     )
 
     if run_mode == "tournament":
@@ -507,19 +601,26 @@ if __name__ == "__main__":
         
         FallTemplateBot2025.save_data_to_file(prediction_date_dict, "latest_prediction_dates.txt")
 
+
+
         # Example questions are a good way to test the bot's performance on a single question
-    #     EXAMPLE_QUESTIONS = [
-    #         "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
+        # EXAMPLE_QUESTIONS = [
+            # "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # 578: Human Extinction - Binary
     #         "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
     #         "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
     #         "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
-    #     ]
-    #     template_bot.skip_previously_forecasted_questions = False
-    #     questions = [
-    #         MetaculusApi.get_question_by_url(question_url)
-    #         for question_url in EXAMPLE_QUESTIONS
-    #     ]
-    #     forecast_reports = asyncio.run(
+        # ]
+        # template_bot.skip_previously_forecasted_questions = False
+        # questions = [
+        #     MetaculusApi.get_question_by_url(question_url)
+        #     for question_url in EXAMPLE_QUESTIONS
+        # ]
+        # forecast_reports = asyncio.run(
             # template_bot.forecast_questions(questions, return_exceptions=True)
-    #     )
-    # template_bot.log_report_summary(forecast_reports)
+        # )
+        bot = FallTemplateBot2025()
+
+        question = MetaculusApi.get_question_by_url("https://www.metaculus.com/questions/578/human-extinction-by-2100/")
+        forecast_reports = asyncio.run(bot.forecast_question(question))
+        # asyncio.run(bot._run_forecast_on_binary(question,research="Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section"))
+    template_bot.log_report_summary(forecast_reports)
