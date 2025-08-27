@@ -114,66 +114,68 @@ class FallTemplateBot2025(ForecastBot):
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
 
     async def run_research(self, question: MetaculusQuestion) -> str:
-        return "Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section." \
-        " If you want to disagree, refer to these probabilities and explain why you think it's different"
+        # return "Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section." \
+        # " If you want to disagree, refer to these probabilities and explain why you think it's different"
 
-        # async with self._concurrency_limiter:
-        #     research = ""
-        #     researcher = self.get_llm("researcher")
+        async with self._concurrency_limiter:
+            research = ""
+            researcher = self.get_llm("researcher")
+            logger.info("llm used for research: ")
+            logger.info(researcher)
 
-        #     prompt = clean_indents(
-        #         f"""
-        #         You are an assistant to a superforecaster.
-        #         The superforecaster will give you a question they intend to forecast on.
-        #         To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
-        #         You do not produce forecasts yourself.
+            prompt = clean_indents(
+                f"""
+                You are an assistant to a superforecaster.
+                The superforecaster will give you a question they intend to forecast on.
+                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+                You do not produce forecasts yourself.
 
-        #         Question:
-        #         {question.question_text}
+                Question:
+                {question.question_text}
 
-        #         This question's outcome will be determined by the specific criteria below:
-        #         {question.resolution_criteria}
+                This question's outcome will be determined by the specific criteria below:
+                {question.resolution_criteria}
 
-        #         {question.fine_print}
-        #         """
-        #     )
+                {question.fine_print}
+                """
+            )
 
-        #     if isinstance(researcher, GeneralLlm):
-        #         research = await researcher.invoke(prompt)
-        #     elif researcher == "asknews/news-summaries":
-        #         research = await AskNewsSearcher().get_formatted_news_async(
-        #             question.question_text
-        #         )
-        #     elif researcher == "asknews/deep-research/medium-depth":
-        #         research = await AskNewsSearcher().get_formatted_deep_research(
-        #             question.question_text,
-        #             sources=["asknews", "google"],
-        #             search_depth=2,
-        #             max_depth=4,
-        #         )
-        #     elif researcher == "asknews/deep-research/high-depth":
-        #         research = await AskNewsSearcher().get_formatted_deep_research(
-        #             question.question_text,
-        #             sources=["asknews", "google"],
-        #             search_depth=4,
-        #             max_depth=6,
-        #         )
-        #     elif researcher.startswith("smart-searcher"):
-        #         model_name = researcher.removeprefix("smart-searcher/")
-        #         searcher = SmartSearcher(
-        #             model=model_name,
-        #             temperature=0,
-        #             num_searches_to_run=2,
-        #             num_sites_per_search=10,
-        #             use_advanced_filters=False,
-        #         )
-        #         research = await searcher.invoke(prompt)
-        #     elif not researcher or researcher == "None":
-        #         research = ""
-        #     else:
-        #         research = await self.get_llm("researcher", "llm").invoke(prompt)
-        #     logger.info(f"Found Research for URL {question.page_url}:\n{research}")
-        #     return research
+            if isinstance(researcher, GeneralLlm):
+                research = await researcher.invoke(prompt)
+            elif researcher == "asknews/news-summaries":
+                research = await AskNewsSearcher().get_formatted_news_async(
+                    question.question_text
+                )
+            elif researcher == "asknews/deep-research/medium-depth":
+                research = await AskNewsSearcher().get_formatted_deep_research(
+                    question.question_text,
+                    sources=["asknews", "google"],
+                    search_depth=2,
+                    max_depth=4,
+                )
+            elif researcher == "asknews/deep-research/high-depth":
+                research = await AskNewsSearcher().get_formatted_deep_research(
+                    question.question_text,
+                    sources=["asknews", "google"],
+                    search_depth=4,
+                    max_depth=6,
+                )
+            elif researcher.startswith("smart-searcher"):
+                model_name = researcher.removeprefix("smart-searcher/")
+                searcher = SmartSearcher(
+                    model=model_name,
+                    temperature=0,
+                    num_searches_to_run=2,
+                    num_sites_per_search=10,
+                    use_advanced_filters=False,
+                )
+                research = await searcher.invoke(prompt)
+            elif not researcher or researcher == "None":
+                research = ""
+            else:
+                research = await self.get_llm("researcher", "llm").invoke(prompt)
+            logger.info(f"Found Research for URL {question.page_url}:\n{research}")
+            return research
 
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
@@ -188,6 +190,8 @@ class FallTemplateBot2025(ForecastBot):
             Question background:
             {question.background_info}
 
+            Your research assistant says:
+            {research}
 
             This question's outcome will be determined by the specific criteria below. These criteria have not yet been satisfied:
             {question.resolution_criteria}
@@ -488,6 +492,44 @@ class FallTemplateBot2025(ForecastBot):
             await report.publish_report_to_metaculus()
         await self._remove_notepad(question)
         return report
+    
+    def get_llm(
+        self,
+        purpose: str = "default",
+        guarantee_type: Literal["llm", "string_name"] | None = None,
+    ) -> GeneralLlm | str:
+        if purpose not in self._llms:
+            raise ValueError(
+                f"Unknown llm requested from llm dict for purpose: '{purpose}'"
+            )
+
+        llm = self._llms[purpose]
+        if llm is None:
+            raise ValueError(
+                f"LLM is undefined for purpose: {purpose}. It was probably not defined in defaults."
+            )
+        return_value = None
+
+        if guarantee_type is None:
+            return_value = llm
+        elif guarantee_type == "llm":
+            if isinstance(llm, GeneralLlm):
+                return_value = llm
+            else:
+                return_value = GeneralLlm(model=llm)
+        elif guarantee_type == "string_name":
+            if isinstance(llm, str):
+                return_value = llm
+            else:
+                logger.warning(
+                    f"Converting GeneralLlm to string llm name: {llm.model} for purpose: {purpose}. This means any settings for the GeneralLlm will be ignored."
+                )
+                return_value = llm.model
+        else:
+            raise ValueError(f"Unknown guarantee_type: {guarantee_type}")
+
+        logger.info(f"LLM used for {purpose}: {return_value.to_model_name(return_value)}")
+        return return_value
 
 
 if __name__ == "__main__":
@@ -534,7 +576,13 @@ if __name__ == "__main__":
                 allowed_tries=2,
             ),
             "summarizer": "openrouter/openai/gpt-4o-mini",
-            "researcher": "openrouter/openai/gpt-4o-mini",
+            # "researcher": "openrouter/nousresearch/deephermes-3-mistral-24b-preview",
+            "researcher": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                temperature=0.3,
+                timeout=40,
+                allowed_tries=2,
+            ),
             "parser": "openrouter/openai/gpt-4o-mini",
         },
     )
@@ -561,45 +609,45 @@ if __name__ == "__main__":
             )
         )
     elif run_mode == "test_questions":
-        EXAMPLE_QUESTIONS = [
-            "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # 578: Human Extinction - Binary
-            "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",  # 8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
-            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # 14333: Age of Oldest Human - Numeric
-            "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # 22427: Number of New Leading AI Labs - Multiple Choice
-            "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # 38880: Number of US Labor Strikes Due to AI in 2029 - Discrete
-        ]
+        # EXAMPLE_QUESTIONS = [
+        #     "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # 578: Human Extinction - Binary
+        #     "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",  # 8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
+        #     "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # 14333: Age of Oldest Human - Numeric
+        #     "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # 22427: Number of New Leading AI Labs - Multiple Choice
+        #     "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # 38880: Number of US Labor Strikes Due to AI in 2029 - Discrete
+        # ]
 
-        prediction_date_dict = FallTemplateBot2025.load_data_from_file("latest_prediction_dates.txt")
-        today = date.today().isoformat()
+        # prediction_date_dict = FallTemplateBot2025.load_data_from_file("latest_prediction_dates.txt")
+        # today = date.today().isoformat()
 
-        for question_url in EXAMPLE_QUESTIONS:
-            question = MetaculusApi.get_question_by_url(question_url)
-            if question.question_type == "binary":
-                if question.already_forecasted:
-                    if (today == prediction_date_dict.get(str(question.id_of_question))):
-                        logger.info("Already made a prediction today on question " + str(question.id_of_question) + ": " + question.question_text)
-                        continue
-                    logger.info("Updating the prediction on question " + str(question.id_of_question) + ": " + question.question_text)
-                    MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
-                    prediction_date_dict[str(question.id_of_question)] = today
-                else:
-                    logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
-                    MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
-                    prediction_date_dict[str(question.id_of_question)] = today
+        # for question_url in EXAMPLE_QUESTIONS:
+        #     question = MetaculusApi.get_question_by_url(question_url)
+        #     if question.question_type == "binary":
+        #         if question.already_forecasted:
+        #             if (today == prediction_date_dict.get(str(question.id_of_question))):
+        #                 logger.info("Already made a prediction today on question " + str(question.id_of_question) + ": " + question.question_text)
+        #                 continue
+        #             logger.info("Updating the prediction on question " + str(question.id_of_question) + ": " + question.question_text)
+        #             MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
+        #             prediction_date_dict[str(question.id_of_question)] = today
+        #         else:
+        #             logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
+        #             MetaculusApi.post_binary_question_prediction(question.id_of_question,0.5)
+        #             prediction_date_dict[str(question.id_of_question)] = today
                 
-            elif question.question_type == "numeric":
-                continue
-            elif question.question_type == "multiple_choice":
-                num_options = len(question.options)
-                probability_per_option = 1.0 / num_options
-                probabilities: dict[str, float] = dict.fromkeys(question.options, probability_per_option)   
-                MetaculusApi.post_multiple_choice_question_prediction(question.id_of_question, probabilities)
-            elif question.question_type == "date":
-                continue
-            elif question.question_type == "discrete":
-                continue
+        #     elif question.question_type == "numeric":
+        #         continue
+        #     elif question.question_type == "multiple_choice":
+        #         num_options = len(question.options)
+        #         probability_per_option = 1.0 / num_options
+        #         probabilities: dict[str, float] = dict.fromkeys(question.options, probability_per_option)   
+        #         MetaculusApi.post_multiple_choice_question_prediction(question.id_of_question, probabilities)
+        #     elif question.question_type == "date":
+        #         continue
+        #     elif question.question_type == "discrete":
+        #         continue
         
-        FallTemplateBot2025.save_data_to_file(prediction_date_dict, "latest_prediction_dates.txt")
+        # FallTemplateBot2025.save_data_to_file(prediction_date_dict, "latest_prediction_dates.txt")
 
 
 
@@ -618,9 +666,8 @@ if __name__ == "__main__":
         # forecast_reports = asyncio.run(
             # template_bot.forecast_questions(questions, return_exceptions=True)
         # )
-        bot = FallTemplateBot2025()
 
-        question = MetaculusApi.get_question_by_url("https://www.metaculus.com/questions/578/human-extinction-by-2100/")
-        forecast_reports = asyncio.run(bot.forecast_question(question))
-        # asyncio.run(bot._run_forecast_on_binary(question,research="Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section"))
+        question = MetaculusApi.get_question_by_url("https://www.metaculus.com/questions/39056/practice-will-shigeru-ishiba-cease-to-be-prime-minister-of-japan-before-september-2025/")
+        forecast_reports = asyncio.run(template_bot.forecast_question(question))
+        # asyncio.run(template_bot._run_forecast_on_binary(question,research="Metaculus currently gives 1% probability, a top forecaster gave 5 percent on the comment section"))
     template_bot.log_report_summary(forecast_reports)
