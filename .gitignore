@@ -1,6 +1,7 @@
 ###  Specific to Project ###
 benchmarks/
 sandbox.py
+latest_prediction_dates.txt
 
 
 ### General gitignore ###

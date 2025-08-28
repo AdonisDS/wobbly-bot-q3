@@ -127,8 +127,14 @@ class FallTemplateBot2025(ForecastBot):
                 f"""
                 You are an assistant to a superforecaster.
                 The superforecaster will give you a question they intend to forecast on.
-                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+                Your main job is to search Polymarket, then Kalshi, then Metaculus, then Manifold Markets and then other websites for their predictions and report.
+                If it's a question about a sporting event, also search betting markets such as Betfair and Oddschecker and calculate the implied probabilities form the odds.
+                For each one of the 6 websites listed before, report their predictions separately or report that you couldn't find anything there or that they're not applicable for the question, if the question is not about a sporting events and you're reporting on Oddschecker or Betfair.
+                Then, if applicable for this question, search and report the base rates.
+                After that, report on the current status of the situation as of the current date.
+                Finally, generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
                 You do not produce forecasts yourself.
+                Explain how you're following each of those steps.
 
                 Question:
                 {question.question_text}
@@ -182,7 +188,7 @@ class FallTemplateBot2025(ForecastBot):
     ) -> ReasonedPrediction[float]:
         prompt = clean_indents(
             f"""
-            You are a professional forecaster interviewing for a job.
+            You are a professional forecaster interviewing for a job.  Think very hard before answering
 
             Your interview question is:
             {question.question_text}
@@ -198,6 +204,9 @@ class FallTemplateBot2025(ForecastBot):
 
             {question.fine_print}
 
+            The community prediction currently is:
+            {question.community_prediction_at_access_time}
+
             Today is {datetime.now().strftime("%Y-%m-%d")}.
 
             Before answering you write:
@@ -205,6 +214,11 @@ class FallTemplateBot2025(ForecastBot):
             (b) The status quo outcome if nothing changed.
             (c) A brief description of a scenario that results in a No outcome.
             (d) A brief description of a scenario that results in a Yes outcome.
+
+            If the research was able to find probabilities from prediction markets, your prediction should mostly be based on that, with few adjustements to account for recent news.
+            If data from prediction markets was not available but the community prediction was, make your prediction based on that with a few adjustements to account for the recent news.
+            If all of that is unavailable, make your prediction grounded on the base rates, if available, and your independent rationale.
+            Explain how you're following each of those steps.
 
             You write your rationale remembering that good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time.
 
@@ -563,14 +577,17 @@ if __name__ == "__main__":
 
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=1,
+        predictions_per_research_report=2,
+        enable_summarize_research=False,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=False,
         llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
             "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                # model="openrouter/openai/gpt-4o-mini", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                # model="openrouter/openai/gpt-5-mini",
+                model="openrouter/openai/gpt-5-chat",
                 temperature=0.3,
                 timeout=40,
                 allowed_tries=2,
@@ -578,7 +595,8 @@ if __name__ == "__main__":
             "summarizer": "openrouter/openai/gpt-4o-mini",
             # "researcher": "openrouter/nousresearch/deephermes-3-mistral-24b-preview",
             "researcher": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                #model="openrouter/openai/gpt-4o-mini-search-preview", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
+                model="openrouter/openai/gpt-4o-search-preview",
                 temperature=0.3,
                 timeout=40,
                 allowed_tries=2,
