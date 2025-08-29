@@ -23,6 +23,8 @@ from forecasting_tools import (
     structure_output,
 )
 
+import json
+
 logger = logging.getLogger(__name__)
 
 
@@ -459,8 +461,8 @@ if __name__ == "__main__":
         # )
 
         # TEST
-        def __default_numeric_values():
-            return [round(0 + i * 0.00005, 5) for i in range(201)]
+        def __default_numeric_values(start, end, step=0.00005):
+            return [start + i * step for i in range(201)]
         
         def __default_discrete_values():
             return [round(0 + i * 0.00125, 5) for i in range(9)]
@@ -468,15 +470,21 @@ if __name__ == "__main__":
         for i, url in enumerate(EXAMPLE_QUESTIONS):
             q = MetaculusApi.get_question_by_url(url)
             qid = q.id_of_question
+            res = json.loads(q.model_dump_json())
             if i == 0:
                 MetaculusApi.post_binary_question_prediction(qid, 0.5)
             elif i == 1:
+                scaling = res["api_json"]["question"]["scaling"]
+                r_min = scaling["range_min"]
+                r_max = scaling["range_max"]
+                b = __default_numeric_values(r_min, r_max, 0.00005)
                 MetaculusApi.post_numeric_question_prediction(
                     qid,
-                    __default_numeric_values()
+                    b
+                    # __default_numeric_values(r_min, r_max, 0.00005)
                 )
             elif i == 2:
-                pass
+                ...
                 # MetaculusApi.post_multiple_choice_question_prediction(
                 #     qid,
                 #     _
