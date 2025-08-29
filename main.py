@@ -24,6 +24,7 @@ from forecasting_tools import (
 )
 
 import json
+import utils
 
 logger = logging.getLogger(__name__)
 
@@ -472,7 +473,16 @@ if __name__ == "__main__":
             qid = q.id_of_question
             res = json.loads(q.model_dump_json())
             if i == 0:
-                MetaculusApi.post_binary_question_prediction(qid, 0.5)
+                latest_forecast_data = res["api_json"]["question"]["aggregations"]["recency_weighted"]["latest"]
+                values = latest_forecast_data["forecast_values"]
+                weights = latest_forecast_data["histogram"][0]
+                try:
+                    out = utils.weighted_median(values, weights)
+                    MetaculusApi.post_binary_question_prediction(qid, out)
+                except ValueError as e:
+                    print(e)
+                    MetaculusApi.post_binary_question_prediction(qid, 0.5)
+
             elif i == 1:
                 scaling = res["api_json"]["question"]["scaling"]
                 r_min = scaling["range_min"]
