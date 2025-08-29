@@ -477,7 +477,7 @@ if __name__ == "__main__":
                 values = latest_forecast_data["forecast_values"]
                 weights = latest_forecast_data["histogram"][0]
                 try:
-                    out = utils.weighted_median(values, weights)
+                    out = utils.weighted_median_binary(values, weights)
                     MetaculusApi.post_binary_question_prediction(qid, out)
                 except ValueError as e:
                     print(e)

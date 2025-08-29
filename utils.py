@@ -1,4 +1,4 @@
-def weighted_median(data, weights):
+def weighted_median_binary(data, weights):
     if len(data) == 0:
         raise ValueError("Forecast data is empty or does not exist.")
     
