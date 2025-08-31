@@ -36,14 +36,14 @@ jobs:
         run: poetry install --no-interaction --no-root
       
       - name: Download previous data
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v11
         with:
           workflow: ${{ github.workflow }}
           name: latest_prediction_dates_test_questions_artifact
           path: ./
+          use_unzip: true
           if_no_artifact_found: warn
         continue-on-error: true
-
       - name: Check downloaded file
         run: |
           echo "Files in current directory:"
