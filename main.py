@@ -24,6 +24,8 @@ from forecasting_tools import (
     structure_output,
 )
 
+from prediction_tracker import PredictionTracker
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -186,8 +188,10 @@ if __name__ == "__main__":
                 timeout=40,
                 allowed_tries=2,
             )
-        }
+        },
     )
+
+    tracker = PredictionTracker()
 
 if run_mode == "aib_tournament":
     logger.info("Running Wobbly Bot in AIB tournament mode")
@@ -221,13 +225,17 @@ elif run_mode == "test_questions":
     for question_url in EXAMPLE_QUESTIONS:
         question = MetaculusApi.get_question_by_url(question_url)
         if question.question_type == "binary":
+            tracker.update_prediction(question.id_of_question, [bot.make_default_binary_prediction()])
+
             if question.already_forecasted:
                 if (today == prediction_date_dict.get(str(question.id_of_question))):
                     logger.info("Already made a prediction today on question " + str(question.id_of_question) + ": " + question.question_text)
                     continue
+
                 logger.info("Updating the prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,bot.make_default_binary_prediction())
                 prediction_date_dict[str(question.id_of_question)] = today
+                
             else:
                 logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,bot.make_default_binary_prediction())
