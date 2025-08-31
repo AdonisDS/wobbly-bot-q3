@@ -37,7 +37,53 @@ class WobblyBot2025Q3(ForecastBot):
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
 
     async def run_research(self, question: MetaculusQuestion) -> str:
-        return "test research"
+        async with self._concurrency_limiter:
+            research = ""
+            researcher = self.get_llm("researcher")
+
+            prompt = clean_indents(
+                f"""
+                You are an assistant to a superforecaster.
+                The superforecaster will give you a question they intend to forecast on.
+                You do not produce forecasts yourself.
+
+                Question:
+                {question.question_text}
+
+                This question's outcome will be determined by the specific criteria below:
+                {question.resolution_criteria}
+
+                {question.fine_print}
+
+                Your most important job is to search polymarket.com, then kalshi.com, then metaculus.com, then manifold.markets for their predictions and report their predictions as percentages. If a question exists on those websites, the percentages there will always be available and you should report their value.
+                
+                You'll always be able to find the same question on metaculus.com because you're being given a question from there, so keep trying until you find it. Try by search Metaculus for the question title: {question.question_text}
+                
+                If it's a question about a sporting event, also search betting markets such as betfair.com and oddschecker.com and calculate the implied probabilities form the odds.
+                
+                Complement by searching and reporting on other websites that could have predictions by superforecasters or other type of professional forecasts and give the values of their predictions.
+                                
+                Then, if applicable for this question, search and report the base rates. Your should inform how many times the event happened in the last (up to) 40 years and what the period considered was. 
+                
+                After that, report on the current status of the situation as of the current date.
+
+                Finally, generate a concise but detailed rundown of the most relevant recent news, including if the question would resolve Yes or No based on current information. Report as many news as possible.
+                
+                For each task and for each one of the 6 websites listed before, report their predictions separately or report that you couldn't find anything there or that they're not applicable for the question.
+
+                Explain how you're following each of those steps.
+
+                Finish by delivering the full final report. There won't be another follow-up prompt, so do as much as asked now.
+
+                """
+            )
+
+            if isinstance(researcher, GeneralLlm):
+                research = await researcher.invoke(prompt)
+            else:
+                research = await self.get_llm("researcher", "llm").invoke(prompt)
+            logger.info(f"Found Research for URL {question.page_url}:\n{research}")
+            return research
     
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
@@ -53,26 +99,125 @@ class WobblyBot2025Q3(ForecastBot):
     async def _run_forecast_on_numeric(
         self, question: NumericQuestion, research: str
     ) -> ReasonedPrediction[NumericDistribution]:
-        return ReasonedPrediction(prediction_value=self.make_default_numeric_prediction(question), reasoning="test numeric reason")
+        upper_bound_message, lower_bound_message = (
+            self._create_upper_and_lower_bound_messages(question)
+        )
+        prompt = clean_indents(
+            f"""
+            You are a professional forecaster interviewing for a job.
+
+            Your interview question is:
+            {question.question_text}
+
+            Background:
+            {question.background_info}
+
+            {question.resolution_criteria}
+
+            {question.fine_print}
+
+            Units for answer: {question.unit_of_measure if question.unit_of_measure else "Not stated (please infer this)"}
+
+            Your research assistant says:
+            {research}
+
+            Today is {datetime.now().strftime("%Y-%m-%d")}.
+
+            {lower_bound_message}
+            {upper_bound_message}
+
+            Formatting Instructions:
+            - Please notice the units requested (e.g. whether you represent a number as 1,000,000 or 1 million).
+            - Never use scientific notation.
+            - Always start with a smaller number (more negative if negative) and then increase from there
+
+            Before answering you write:
+            (a) The time left until the outcome to the question is known.
+            (b) The outcome if nothing changed.
+            (c) The outcome if the current trend continued.
+            (d) The expectations of experts and markets.
+            (e) A brief description of an unexpected scenario that results in a low outcome.
+            (f) A brief description of an unexpected scenario that results in a high outcome.
+
+            You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns.
+
+            The last thing you write is your final answer as:
+            "
+            Percentile 10: XX
+            Percentile 20: XX
+            Percentile 40: XX
+            Percentile 60: XX
+            Percentile 80: XX
+            Percentile 90: XX
+            "
+            """
+        )
+        reasoning = await self.get_llm("forecaster", "llm").invoke(prompt)
+        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
+        percentile_list: list[Percentile] = await structure_output(
+            reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+        )
+        prediction = NumericDistribution.from_question(percentile_list, question)
+        logger.info(
+            f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}"
+        )
+        return ReasonedPrediction(prediction_value=prediction, reasoning=reasoning)
     
+    def _create_upper_and_lower_bound_messages(
+        self, question: NumericQuestion
+    ) -> tuple[str, str]:
+        if question.nominal_upper_bound is not None:
+            upper_bound_number = question.nominal_upper_bound
+        else:
+            upper_bound_number = question.upper_bound
+        if question.nominal_lower_bound is not None:
+            lower_bound_number = question.nominal_lower_bound
+        else:
+            lower_bound_number = question.lower_bound
+
+        if question.open_upper_bound:
+            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}."
+        else:
+            upper_bound_message = (
+                f"The outcome can not be higher than {upper_bound_number}."
+            )
+
+        if question.open_lower_bound:
+            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}."
+        else:
+            lower_bound_message = (
+                f"The outcome can not be lower than {lower_bound_number}."
+            )
+        return upper_bound_message, lower_bound_message
+
     async def forecast_questions(
         self,
         questions: Sequence[MetaculusQuestion],
         prediction_date_dict: dict,
         return_exceptions: bool = False,
     ) -> list[ForecastReport] | list[ForecastReport | BaseException]:
+        
+        # qturl = "https://www.metaculus.com/c/diffusion-community/38880" # discrete
+        # qt = MetaculusApi.get_question_by_url(qturl)
+        # questions_to_forecast = []
+        # questions_to_forecast.append(qt)
 
-        today = date.today().isoformat()
-
+        qturl = "https://www.metaculus.com/questions/39056/" # binary ishiba
+        qt = MetaculusApi.get_question_by_url(qturl)
         questions_to_forecast = []
-        for q in questions:
-            # if q.question_text.startswith("[PRACTICE]"):
-            #     logger.info(f"Skipping practice question {q.id_of_question}: {q.question_text}")
-            #     continue
-            if q.already_forecasted and prediction_date_dict.get(str(q.id_of_question)) == today:
-                logger.info(f"Already made a prediction today on question {q.id_of_question}: {q.question_text}")
-                continue        
-            questions_to_forecast.append(q)
+        questions_to_forecast.append(qt)
+
+        # today = date.today().isoformat()
+
+        # questions_to_forecast = []
+        # for q in questions:
+        #     # if q.question_text.startswith("[PRACTICE]"):
+        #     #     logger.info(f"Skipping practice question {q.id_of_question}: {q.question_text}")
+        #     #     continue
+        #     if q.already_forecasted and prediction_date_dict.get(str(q.id_of_question)) == today:
+        #         logger.info(f"Already made a prediction today on question {q.id_of_question}: {q.question_text}")
+        #         continue        
+        #     questions_to_forecast.append(q)
 
         if not questions_to_forecast:
             logger.info("No new tournament questions to forecast at this time")
@@ -187,8 +332,8 @@ if __name__ == "__main__":
     ], "Invalid run mode"
 
     bot = WobblyBot2025Q3(
-        research_reports_per_question=2,
-        predictions_per_research_report=2,
+        research_reports_per_question=1,
+        predictions_per_research_report=1,
         enable_summarize_research=False,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
