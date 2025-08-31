@@ -480,8 +480,8 @@ if __name__ == "__main__":
     ], "Invalid run mode"
 
     bot = WobblyBot2025Q3(
-        research_reports_per_question=1,
-        predictions_per_research_report=1,
+        research_reports_per_question=2,
+        predictions_per_research_report=3,
         enable_summarize_research=False,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
