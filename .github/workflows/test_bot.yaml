@@ -53,4 +53,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: latest_prediction_dates_test_question_artifact
-          path: latest_prediction_dates_test_question.txt
+          path: latest_prediction_dates_test_questions.txt
