@@ -29,7 +29,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: latest_prediction_dates_test_questions.txt
-          key: prediction-log-${{ github.ref }}
+          key: prediction-log-${{ github.ref }}-${{ github.run_id }}
+          restore-keys: |
+            prediction-log-${{ github.ref }}
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
       - name: Run bot
