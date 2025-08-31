@@ -63,8 +63,12 @@ jobs:
             echo "No previous data file found"
           fi
       - name: Run bot
-        run: |
-          poetry run python main.py --mode aib_tournament
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: poetry run python main.py --mode aib_tournament
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
