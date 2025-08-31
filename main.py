@@ -124,7 +124,7 @@ class WobblyBot2025Q3(ForecastBot):
         if question.question_type in ["binary"]:
             prediction = utils.get_binary_community_prediction(question)
             if prediction is not None:
-                return prediction * 0.75, prediction * 1.25
+                return prediction - 0.25, (prediction / (1 - prediction)) / (0.25 / (1 - 0.25))
 
         return 0.0, 0.0
 
@@ -253,7 +253,7 @@ elif run_mode == "test_questions":
             ## TESTING - Log default values (includes forecasted questions)
             # if has_community_prediction:
             #     dist_1, dist_2 = bot.community_prediction_divergence(question)
-            #     print(f">>> community_prediction - 25% = {dist_1}, community_prediction + 25% = {dist_2}")
+            #     print(f">>> divergence_1 = {dist_1}, divergence_2 = {dist_2}")
 
             if question.already_forecasted:
                 if (today == prediction_date_dict.get(str(question.id_of_question))):
@@ -265,7 +265,7 @@ elif run_mode == "test_questions":
             else:
                 if has_community_prediction:
                     dist_1, dist_2 = bot.community_prediction_divergence(question)
-                    print(f">>> community_prediction - 25% = {dist_1} community_prediction + 25% = {dist_2}")
+                    print(f">>> divergence_1 = {dist_1}, divergence_2 = {dist_2}")
 
                 logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,bot.make_default_binary_prediction())
