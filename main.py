@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Literal, List, Sequence
 
 from forecasting_tools import (
@@ -22,7 +22,11 @@ from forecasting_tools import (
     SmartSearcher,
     clean_indents,
     structure_output,
+    ApiFilter,
 )
+
+import json
+import utils
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -68,6 +72,17 @@ class WobblyBot2025Q3(ForecastBot):
         )
 
         return reports
+    
+    def verify_community_prediction_exists(
+        self,
+        question: MetaculusQuestion,
+    ) -> bool:
+        res = json.loads(question.model_dump_json())
+        try:
+            reveal_time = datetime.fromisoformat(res["cp_reveal_time"])
+            return reveal_time < datetime.now()
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def make_default_binary_prediction(self):
         return 0.5
@@ -104,6 +119,15 @@ class WobblyBot2025Q3(ForecastBot):
         probability_per_option = 1.0 / num_options
         probabilities: dict[str, float] = dict.fromkeys(question.options, probability_per_option)
         return probabilities
+    
+    def community_prediction_divergence(self, question: MetaculusQuestion) -> tuple[float, float]:
+        if question.question_type in ["binary"]:
+            prediction = utils.get_binary_community_prediction(question)
+            if prediction is not None:
+                return prediction * 0.75, prediction * 1.25
+
+        return 0.0, 0.0
+
     
     @staticmethod
     def load_data_from_file(filepath) -> dict:
@@ -207,6 +231,8 @@ elif run_mode == "test_questions":
         "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  
         #8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
         "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",
+        #38667: US Undergrad Enrollment Decline from 2024 to 2030 - Binary
+        "https://www.metaculus.com/questions/39314/us-undergraduate-enrollment-decline-by-10-from-2024-to-2030",
         #14333: Age of Oldest Human - Numeric
         "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",
         #22427: Number of New Leading AI Labs - Multiple Choice  
@@ -220,7 +246,15 @@ elif run_mode == "test_questions":
 
     for question_url in EXAMPLE_QUESTIONS:
         question = MetaculusApi.get_question_by_url(question_url)
+        has_community_prediction = bot.verify_community_prediction_exists(question)
+        logger.info(f"QID: {question.id_of_question} of type: <{question.question_type}> has community prediction: {has_community_prediction}")
+        
         if question.question_type == "binary":
+            ## TESTING - Log default values (includes forecasted questions)
+            # if has_community_prediction:
+            #     dist_1, dist_2 = bot.community_prediction_divergence(question)
+            #     print(f">>> community_prediction - 25% = {dist_1}, community_prediction + 25% = {dist_2}")
+
             if question.already_forecasted:
                 if (today == prediction_date_dict.get(str(question.id_of_question))):
                     logger.info("Already made a prediction today on question " + str(question.id_of_question) + ": " + question.question_text)
@@ -229,6 +263,10 @@ elif run_mode == "test_questions":
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,bot.make_default_binary_prediction())
                 prediction_date_dict[str(question.id_of_question)] = today
             else:
+                if has_community_prediction:
+                    dist_1, dist_2 = bot.community_prediction_divergence(question)
+                    print(f">>> community_prediction - 25% = {dist_1} community_prediction + 25% = {dist_2}")
+
                 logger.info("Making the first prediction on question " + str(question.id_of_question) + ": " + question.question_text)
                 MetaculusApi.post_binary_question_prediction(question.id_of_question,bot.make_default_binary_prediction())
                 prediction_date_dict[str(question.id_of_question)] = today
