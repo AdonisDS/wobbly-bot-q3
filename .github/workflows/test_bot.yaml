@@ -38,7 +38,6 @@ jobs:
       - name: Download previous data
         uses: dawidd6/action-download-artifact@v11
         with:
-          workflow: ${{ github.workflow }}
           name: latest_prediction_dates_test_questions_artifact
           path: ./
           use_unzip: true
