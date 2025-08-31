@@ -43,6 +43,13 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 15
           command: poetry install --no-interaction --no-root
+      - name: Load cached prediction log
+        id: cached-prediction-log
+        uses: actions/cache@v4
+        with:
+          path: latest_prediction_dates_aib_tournament.txt
+          key: prediction-log-${{ github.ref }} # A key to identify the cache
+
       - name: Run bot
         uses: nick-invision/retry@v2
         with:
@@ -53,8 +60,9 @@ jobs:
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      - name: Upload data artifact
-        uses: actions/upload-artifact@v4
+      - name: Save prediction log
+        if: always()
+        uses: actions/cache/save@v4
         with:
-          name: latest_prediction_dates_aib_tournament_artifact
           path: latest_prediction_dates_aib_tournament.txt
+          key: prediction-log-${{ github.ref }}

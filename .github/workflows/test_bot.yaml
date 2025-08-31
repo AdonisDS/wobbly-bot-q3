@@ -37,3 +37,9 @@ jobs:
         with:
           name: latest_prediction_dates_test_questions_artifact
           path: latest_prediction_dates_test_questions.txt
+      - name: Download data artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: latest_prediction_dates_test_questions_artifact
+          path: . 
+        continue-on-error: true
