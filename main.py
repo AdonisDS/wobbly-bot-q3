@@ -58,7 +58,7 @@ class WobblyBot2025Q3(ForecastBot):
 
                 Your most important job is to search polymarket.com, then kalshi.com, then metaculus.com, then manifold.markets for their predictions and report their predictions as percentages. If a question exists on those websites, the percentages there will always be available and you should report their value.
                 
-                You'll always be able to find the same question on metaculus.com because you're being given a question from there, so keep trying until you find it. Try by search Metaculus for the question title: {question.question_text}
+                You'll always be able to find the same question on metaculus.com because you're being given a question from there, so keep trying until you find it.
                 
                 If it's a question about a sporting event, also search betting markets such as betfair.com and oddschecker.com and calculate the implied probabilities form the odds.
                 
@@ -89,13 +89,135 @@ class WobblyBot2025Q3(ForecastBot):
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
     ) -> ReasonedPrediction[float]:
-        return ReasonedPrediction(prediction_value=self.make_default_binary_prediction(), reasoning="test binary reason") #TODO
-    
+        prompt = clean_indents(
+            f"""
+            You are a professional forecaster interviewing for a job.  Think very hard before answering.
+
+            Your interview question is:
+            {question.question_text}
+
+            Question background:
+            {question.background_info}
+
+            Your research assistant says:
+            {research}
+
+            This question's outcome will be determined by the specific criteria below. These criteria have not yet been satisfied:
+            {question.resolution_criteria}
+
+            {question.fine_print}
+
+            Today is {datetime.now().strftime("%Y-%m-%d")}.
+
+            Before answering you write:
+            (a) The time left until the outcome to the question is known.
+            (b) The status quo outcome if nothing changed.
+            (c) A brief description of a scenario that results in a No outcome.
+            (d) A brief description of a scenario that results in a Yes outcome.
+
+            If the research was able to find probabilities from prediction markets, your prediction should mostly be based on that, with few adjustements to account for recent news.
+            If data from prediction markets was not available, make your prediction based on the base rates, if available, and your independent rationale.
+            Less importantly, also take into account the all the recent news from the report.
+            If base rates and prediction markets data are unavailable, make your prediction based on the recent news.
+            Make sure that, if the event being forecasted can happen any time, then assume that the probability of the event happening decays linearly over time, so that if not a lot of time if left until resolution, you would give a very low probability. For this, first estimate a prediction of the event happening in the next 12 months and then convert that probability considering how many days until the resolution are in fact left. If not many days are left, make sure the result is a low probability. This is not applicable for events that only happen once at a specified date, such as an election.
+            Good forecasters also leave room for unknown unknowns, so make sure to never predict anything below 4% ou above 96%
+            Explain how you're following each of those steps.
+
+            """
+        )
+        if bot.verify_community_prediction_exists(question):
+            logger.info(f"Question {question.id_of_question} has community prediction")
+            lower_bound, upper_bound = self.community_prediction_divergence(question)
+            cp_prompt = f"""
+            Make sure your prediction is not below {lower_bound} and not above {upper_bound}.
+
+            """
+            prompt += cp_prompt
+
+        final_instructions = f"""
+            You write your rationale remembering that good forecasters put large weight on the status quo outcome since the world changes slowly most of the time.
+
+            The last thing you write is your final answer as: "Probability: ZZ%", 0-100
+        """
+        prompt += final_instructions
+        reasoning = await self.get_llm("forecaster", "llm").invoke(prompt)
+        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
+        binary_prediction: BinaryPrediction = await structure_output(
+            reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
+        )
+        decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
+
+        logger.info(
+            f"Forecasted URL {question.page_url} with prediction: {decimal_pred}"
+        )
+        return ReasonedPrediction(prediction_value=decimal_pred, reasoning=reasoning)
+
     async def _run_forecast_on_multiple_choice(
         self, question: MultipleChoiceQuestion, research: str
     ) -> ReasonedPrediction[PredictedOptionList]:
-        #FIXME The default method doesn't return the type needed here
-        return ReasonedPrediction(prediction_value=self.make_default_multiple_choice_prediction(question), reasoning="test multiple choice reason")
+        prompt = clean_indents(
+            f"""
+            You are a professional forecaster interviewing for a job. Think very hard before answering.
+
+            Your interview question is:
+            {question.question_text}
+
+            The options are: {question.options}
+
+            Background:
+            {question.background_info}
+
+            {question.resolution_criteria}
+
+            {question.fine_print}
+
+            Your research assistant says:
+            {research}
+
+            Today is {datetime.now().strftime("%Y-%m-%d")}.
+
+            Before answering you write:
+            (a) The time left until the outcome to the question is known.
+            (b) The status quo outcome if nothing changed.
+            (c) A description of an scenario that results in the most probable choices
+            
+            If the research was able to find probabilities from prediction markets, your prediction should mostly be based on that, with few adjustements to account for recent news.
+            If data from prediction markets was not available, make your prediction based on the base rates, if available, and your independent rationale.
+            Less importantly, also take into account the all the recent news from the report.
+            If base rates and prediction markets data are unavailable, make your prediction based on the recent news.
+            Good forecasters also leave room for unknown unknowns, so make sure to never predict anything below 2% ou above 98% for each of the options.
+            Explain how you're following each of those steps.
+            
+            You write your rationale remembering that good forecasters put large weight on the status quo outcome since the world changes slowly most of the time.
+
+            The last thing you write is your final probabilities for the N options in this order {question.options} as:
+            Option_A: Probability_A
+            Option_B: Probability_B
+            ...
+            Option_N: Probability_N
+            """
+        )
+        parsing_instructions = clean_indents(
+            f"""
+            Make sure that all option names are one of the following:
+            {question.options}
+            The text you are parsing may prepend these options with some variation of "Option" which you should remove if not part of the option names I just gave you.
+            """
+        )
+        reasoning = await self.get_llm("forecaster", "llm").invoke(prompt)
+        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
+        predicted_option_list: PredictedOptionList = await structure_output(
+            text_to_structure=reasoning,
+            output_type=PredictedOptionList,
+            model=self.get_llm("parser", "llm"),
+            additional_instructions=parsing_instructions,
+        )
+        logger.info(
+            f"Forecasted URL {question.page_url} with prediction: {predicted_option_list}"
+        )
+        return ReasonedPrediction(
+            prediction_value=predicted_option_list, reasoning=reasoning
+        )
 
     async def _run_forecast_on_numeric(
         self, question: NumericQuestion, research: str
@@ -105,7 +227,7 @@ class WobblyBot2025Q3(ForecastBot):
         )
         prompt = clean_indents(
             f"""
-            You are a professional forecaster interviewing for a job.
+            You are a professional forecaster interviewing for a job. Think very hard before answering
 
             Your interview question is:
             {question.question_text}
@@ -136,18 +258,28 @@ class WobblyBot2025Q3(ForecastBot):
             (a) The time left until the outcome to the question is known.
             (b) The outcome if nothing changed.
             (c) The outcome if the current trend continued.
-            (d) The expectations of experts and markets.
-            (e) A brief description of an unexpected scenario that results in a low outcome.
-            (f) A brief description of an unexpected scenario that results in a high outcome.
+            (d) A brief description of an scenario that results in a low outcome.
+            (e) A brief description of an scenario that results in a high outcome.
 
-            You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns.
+            If the research was able to find probabilities from prediction markets, your prediction should mostly be based on that, with few adjustements to account for recent news.
+            If data from prediction markets was not available, make your prediction based on the base rates, if available, and your independent rationale.
+            Less importantly, also take into account the all the recent news from the report.
+            If base rates and prediction markets data are unavailable, make your prediction based on the recent news.
+            Good forecasters also leave room for unknown unknowns, so make sure your Percentile 10 is not below {question.lower_bound} and your Percentile 90 is not above {question.upper_bound}. Also make sure that your range is not narrow and that you leave some values outside of the {question.lower_bound} to {question.upper_bound} range.
+            
+            Explain how you're following each of those steps.
+
+            You write your rationale remembering that good forecasters put large weight on the status quo outcome since the world changes slowly most of the time.
 
             The last thing you write is your final answer as:
             "
             Percentile 10: XX
             Percentile 20: XX
+            Percentile 30: XX
             Percentile 40: XX
+            Percentile 50: XX
             Percentile 60: XX
+            Percentile 70: XX
             Percentile 80: XX
             Percentile 90: XX
             "
@@ -198,27 +330,32 @@ class WobblyBot2025Q3(ForecastBot):
         return_exceptions: bool = False,
     ) -> list[ForecastReport] | list[ForecastReport | BaseException]:
         
-        # qturl = "https://www.metaculus.com/c/diffusion-community/38880" # discrete
+        # qturl = "https://www.metaculus.com/c/diffusion-community/38880" # discrete ai protests
         # qt = MetaculusApi.get_question_by_url(qturl)
         # questions_to_forecast = []
         # questions_to_forecast.append(qt)
 
-        qturl = "https://www.metaculus.com/questions/39056/" # binary ishiba
-        qt = MetaculusApi.get_question_by_url(qturl)
-        questions_to_forecast = []
-        questions_to_forecast.append(qt)
-
-        # today = date.today().isoformat()
-
+        # qturl = "https://www.metaculus.com/questions/39056/" # binary ishiba
+        # qt = MetaculusApi.get_question_by_url(qturl)
         # questions_to_forecast = []
-        # for q in questions:
-        #     # if q.question_text.startswith("[PRACTICE]"):
-        #     #     logger.info(f"Skipping practice question {q.id_of_question}: {q.question_text}")
-        #     #     continue
-        #     if q.already_forecasted and prediction_date_dict.get(str(q.id_of_question)) == today:
-        #         logger.info(f"Already made a prediction today on question {q.id_of_question}: {q.question_text}")
-        #         continue        
-        #     questions_to_forecast.append(q)
+        # questions_to_forecast.append(qt)
+
+        # qturl = "https://www.metaculus.com/questions/37322/" #multiple choice 2028 democrats
+        # qt = MetaculusApi.get_question_by_url(qturl)
+        # questions_to_forecast = []
+        # questions_to_forecast.append(qt)
+
+        today = date.today().isoformat()
+
+        questions_to_forecast = []
+        for q in questions:
+            # if q.question_text.startswith("[PRACTICE]"):
+            #     logger.info(f"Skipping practice question {q.id_of_question}: {q.question_text}")
+            #     continue
+            if q.already_forecasted and prediction_date_dict.get(str(q.id_of_question)) == today:
+                logger.info(f"Already made a prediction today on question {q.id_of_question}: {q.question_text}")
+                continue        
+            questions_to_forecast.append(q)
 
         if not questions_to_forecast:
             logger.info("No new tournament questions to forecast at this time")
@@ -359,12 +496,14 @@ if __name__ == "__main__":
             ),
             "forecaster": GeneralLlm(
                 model="openrouter/openai/gpt-5",
+                # model="openrouter/openai/gpt-5-mini",
                 temperature=0.3,
                 timeout=40,
                 allowed_tries=2,
             ),
             "researcher": GeneralLlm(
-                model="openrouter/openai/gpt-5:online",
+                # model="openrouter/openai/gpt-5:online",
+                model="openrouter/openai/gpt-4o-search-preview",
                 temperature=0.3,
                 timeout=40,
                 allowed_tries=2,
