@@ -448,7 +448,7 @@ if __name__ == "__main__":
         # Example questions are a good way to test the bot's performance on a single question
         EXAMPLE_QUESTIONS = [
             "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
-            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
+            "https://www.metacu lus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
             "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
             "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
         ]
@@ -474,10 +474,11 @@ if __name__ == "__main__":
             res = json.loads(q.model_dump_json())
             if i == 0:
                 latest_forecast_data = res["api_json"]["question"]["aggregations"]["recency_weighted"]["latest"]
-                values = latest_forecast_data["forecast_values"]
-                weights = latest_forecast_data["histogram"][0]
+                # values = latest_forecast_data["forecast_values"]
+                # weights = latest_forecast_data["histogram"][0]
                 try:
-                    out = utils.weighted_median_binary(values, weights)
+                    out = latest_forecast_data["centers"][0]
+                    # out = utils.weighted_median_binary(values, weights)
                     MetaculusApi.post_binary_question_prediction(qid, out)
                 except ValueError as e:
                     print(e)
@@ -487,6 +488,9 @@ if __name__ == "__main__":
                 scaling = res["api_json"]["question"]["scaling"]
                 r_min = scaling["range_min"]
                 r_max = scaling["range_max"]
+                has_upper_bound = scaling["open_upper_bound"]
+                has_lower_bound = scaling["open_lower_bound"]
+                # continuous_range
                 b = __default_numeric_values(r_min, r_max, 0.00005)
                 MetaculusApi.post_numeric_question_prediction(
                     qid,
