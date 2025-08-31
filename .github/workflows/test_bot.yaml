@@ -39,10 +39,22 @@ jobs:
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: ${{ github.workflow }}
-          name: latest_prediction_dates_test_question_artifact
+          name: latest_prediction_dates_test_questions_artifact
           path: ./
           if_no_artifact_found: warn
         continue-on-error: true
+
+      - name: Check downloaded file
+        run: |
+          echo "Files in current directory:"
+          ls -la
+    
+          if [ -f "latest_prediction_dates_test_questions.txt" ]; then
+            echo "Previous data file found"
+            cat latest_prediction_dates_test_questions.txt
+          else
+            echo "No previous data file found"
+          fi
       - name: Run bot
         run: |
           poetry run python main.py --mode test_questions
@@ -52,5 +64,5 @@ jobs:
       - name: Upload data artifact
         uses: actions/upload-artifact@v4
         with:
-          name: latest_prediction_dates_test_question_artifact
+          name: latest_prediction_dates_test_questions_artifact
           path: latest_prediction_dates_test_questions.txt
