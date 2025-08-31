@@ -143,7 +143,8 @@ class WobblyBot2025Q3(ForecastBot):
         if question.question_type in ["binary"]:
             prediction = utils.get_binary_community_prediction(question)
             if prediction is not None:
-                return prediction - 0.25, (prediction / (1 - prediction)) / (0.25 / (1 - 0.25))
+                return prediction * 0.7, prediction * 1.3
+                # return prediction - 0.25, (prediction / (1 - prediction)) / (0.25 / (1 - 0.25))
 
         return 0.0, 0.0
 
