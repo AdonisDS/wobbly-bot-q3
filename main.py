@@ -71,7 +71,11 @@ class WobblyBot2025Q3(ForecastBot):
             lower_bound, upper_bound = self.community_prediction_divergence(question)
 
             context.update(
-                {"has_cp": True, "lower_bound": lower_bound, "upper_bound": upper_bound}
+                {
+                    "has_cp": True, 
+                    "lower_bound": lower_bound, 
+                    "upper_bound": upper_bound
+                }
             )
 
         prompt = loader.load_prompt("binary.yaml", **context)
