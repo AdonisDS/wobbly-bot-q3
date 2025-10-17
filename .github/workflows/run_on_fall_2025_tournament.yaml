@@ -28,21 +28,25 @@ jobs:
           installer-parallel: true
 
       # Makes the job not have to download dependencies every time it runs but it won't get updates from them.
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      # - name: Load cached venv
+      #   id: cached-poetry-dependencies
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: .venv
+      #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
       
+      # - name: Install dependencies
+      #   if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      #   uses: nick-invision/retry@v2
+      #   with:
+      #     timeout_minutes: 4
+      #     max_attempts: 3
+      #     retry_wait_seconds: 15
+      #     command: poetry install --no-interaction --no-root
+          
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 4
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: poetry install --no-interaction --no-root
+        run: poetry install --no-interaction --no-root    
+          
       - name: Download previous data
         uses: dawidd6/action-download-artifact@v11
         with:
