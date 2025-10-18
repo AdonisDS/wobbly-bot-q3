@@ -56,7 +56,7 @@ class WobblyBot2025Q3(ForecastBot):
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
     ) -> ReasonedPrediction[float]:
-        context = utils.get_prompt_context()
+        context = utils.get_prompt_context(question)
         context.update(
             {
                 "background_info": question.background_info,
@@ -96,7 +96,7 @@ class WobblyBot2025Q3(ForecastBot):
     async def _run_forecast_on_multiple_choice(
         self, question: MultipleChoiceQuestion, research: str
     ) -> ReasonedPrediction[PredictedOptionList]:
-        context = utils.get_prompt_context()
+        context = utils.get_prompt_context(question)
         context.update(
             {
                 "background_info": question.background_info,
@@ -138,7 +138,7 @@ class WobblyBot2025Q3(ForecastBot):
         upper_bound_message, lower_bound_message = (
             self._create_upper_and_lower_bound_messages(question)
         )
-        context = utils.get_prompt_context()
+        context = utils.get_prompt_context(question)
         context.update(
             {
                 "background_info": question.background_info,
