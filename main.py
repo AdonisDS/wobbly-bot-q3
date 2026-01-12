@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import time
 from datetime import date, datetime
 from typing import Literal, List, Sequence
 
@@ -180,16 +181,16 @@ class WobblyBot2025Q3(ForecastBot):
         )
 
         if question.open_upper_bound:
-            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}, so make your Percentile 40 not higher than {upper_bound_number}, but make sure your Percentiles 85, 90 and 95 are higher than or equal to {upper_bound_number}."
+            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}, so make your Percentile 25 not higher than {upper_bound_number}, but make sure your Percentiles 90 and 95 are higher than or equal to {upper_bound_number}."
         else:
-            upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 70 lower than{upper_bound_number}, but make your Percentiles 90 and 95 equal to {upper_bound_number}."
+            upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 40 lower than{upper_bound_number}, but make your Percentile 95 equal to {upper_bound_number}."
             if question.question_type == "discrete":
-                upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 60 lower than {upper_bound_number}, but make your Percentiles 85, 90 and 95 equal to {upper_bound_number}."
+                upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 20 lower than {upper_bound_number}, but make your Percentile 95 equal to {upper_bound_number}."
 
         if question.open_lower_bound:
-            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}, so make your Percentile 70 higher than {lower_bound_number}, but make sure your Percentiles 15, 10 and 5 are lower than or equal to {lower_bound_number}."
+            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}, so make your Percentile 80 higher than {lower_bound_number}, but make sure your Percentiles 10 and 5 are lower than or equal to {lower_bound_number}."
         else:
-            lower_bound_message = f"The outcome can not be lower than {lower_bound_number}, so make your Percentile 60 higher than {lower_bound_number}, but make your Percentiles 10 and 5 equal to {lower_bound_number}."
+            lower_bound_message = f"The outcome can not be lower than {lower_bound_number}, so make your Percentile 80 higher than {lower_bound_number}, but make your Percentile 5 equal to {lower_bound_number}."
 
         return upper_bound_message, lower_bound_message
 
@@ -374,7 +375,7 @@ if __name__ == "__main__":
                 allowed_tries=2,
             ),
             "forecaster": GeneralLlm(
-                model="openrouter/openai/gpt-5",
+                model="openrouter/openai/gpt-5.2",
                 # model="openrouter/openai/gpt-5-mini",
                 temperature=0.3,
                 timeout=40,
@@ -411,7 +412,7 @@ if run_mode == "aib_tournament":
     today = date.today().isoformat()
 
     questions = MetaculusApi.get_all_open_questions_from_tournament(
-        MetaculusApi.CURRENT_AI_COMPETITION_ID
+        32916#MetaculusApi.CURRENT_AI_COMPETITION_ID
     )
     reports = asyncio.run(
         bot.forecast_questions(questions, prediction_date_dict, return_exceptions=True)
@@ -437,13 +438,13 @@ elif run_mode == "test_questions":
 
     EXAMPLE_QUESTIONS = [
         # 578: Human Extinction - Binary
-        "https://www.metaculus.com/questions/578/human-extinction-by-2100/",
+        # "https://www.metaculus.com/questions/578/human-extinction-by-2100/",
         # 8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
-        "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",
+        # "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",
         # 38667: US Undergrad Enrollment Decline from 2024 to 2030 - Binary
         "https://www.metaculus.com/questions/39314/us-undergraduate-enrollment-decline-by-10-from-2024-to-2030",
         # 26268: 5Y After AGI - AI Philosophical Competence - Binary
-        "https://www.metaculus.com/questions/26268/5y-after-agi-ai-philosophical-competence/",
+        # "https://www.metaculus.com/questions/26268/5y-after-agi-ai-philosophical-competence/",
         # 14333: Age of Oldest Human - Numeric
         "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",
         # 22427: Number of New Leading AI Labs - Multiple Choice
@@ -521,6 +522,7 @@ elif run_mode == "test_questions":
             prediction = bot.make_default_numeric_prediction(question)
             cdf = [percentile.percentile for percentile in prediction.cdf]
             MetaculusApi.post_numeric_question_prediction(question.id_of_question, cdf)
+        time.sleep(1)
 
     bot.save_data_to_file(
         prediction_date_dict, "latest_prediction_dates_test_questions.txt"
