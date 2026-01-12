@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import time
 from datetime import date, datetime
 from typing import Literal, List, Sequence
 
@@ -437,13 +438,13 @@ elif run_mode == "test_questions":
 
     EXAMPLE_QUESTIONS = [
         # 578: Human Extinction - Binary
-        "https://www.metaculus.com/questions/578/human-extinction-by-2100/",
+        # "https://www.metaculus.com/questions/578/human-extinction-by-2100/",
         # 8632: Total Yield of Nuc Det 1000MT by 2050 - Binary
-        "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",
+        # "https://www.metaculus.com/questions/8632/total-yield-of-nuc-det-1000mt-by-2050/",
         # 38667: US Undergrad Enrollment Decline from 2024 to 2030 - Binary
         "https://www.metaculus.com/questions/39314/us-undergraduate-enrollment-decline-by-10-from-2024-to-2030",
         # 26268: 5Y After AGI - AI Philosophical Competence - Binary
-        "https://www.metaculus.com/questions/26268/5y-after-agi-ai-philosophical-competence/",
+        # "https://www.metaculus.com/questions/26268/5y-after-agi-ai-philosophical-competence/",
         # 14333: Age of Oldest Human - Numeric
         "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",
         # 22427: Number of New Leading AI Labs - Multiple Choice
@@ -521,6 +522,7 @@ elif run_mode == "test_questions":
             prediction = bot.make_default_numeric_prediction(question)
             cdf = [percentile.percentile for percentile in prediction.cdf]
             MetaculusApi.post_numeric_question_prediction(question.id_of_question, cdf)
+        time.sleep(1)
 
     bot.save_data_to_file(
         prediction_date_dict, "latest_prediction_dates_test_questions.txt"
