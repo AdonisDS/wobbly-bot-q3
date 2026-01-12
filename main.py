@@ -411,7 +411,7 @@ if run_mode == "aib_tournament":
     today = date.today().isoformat()
 
     questions = MetaculusApi.get_all_open_questions_from_tournament(
-        MetaculusApi.CURRENT_AI_COMPETITION_ID
+        32916#MetaculusApi.CURRENT_AI_COMPETITION_ID
     )
     reports = asyncio.run(
         bot.forecast_questions(questions, prediction_date_dict, return_exceptions=True)
