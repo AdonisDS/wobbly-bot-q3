@@ -180,16 +180,16 @@ class WobblyBot2025Q3(ForecastBot):
         )
 
         if question.open_upper_bound:
-            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}, so make your Percentile 40 not higher than {upper_bound_number}, but make sure your Percentiles 85, 90 and 95 are higher than or equal to {upper_bound_number}."
+            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}, so make your Percentile 25 not higher than {upper_bound_number}, but make sure your Percentiles 90 and 95 are higher than or equal to {upper_bound_number}."
         else:
-            upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 70 lower than{upper_bound_number}, but make your Percentiles 90 and 95 equal to {upper_bound_number}."
+            upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 40 lower than{upper_bound_number}, but make your Percentile 95 equal to {upper_bound_number}."
             if question.question_type == "discrete":
-                upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 60 lower than {upper_bound_number}, but make your Percentiles 85, 90 and 95 equal to {upper_bound_number}."
+                upper_bound_message = f"The outcome can not be higher than {upper_bound_number}, so make your Percentile 20 lower than {upper_bound_number}, but make your Percentile 95 equal to {upper_bound_number}."
 
         if question.open_lower_bound:
-            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}, so make your Percentile 70 higher than {lower_bound_number}, but make sure your Percentiles 15, 10 and 5 are lower than or equal to {lower_bound_number}."
+            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}, so make your Percentile 80 higher than {lower_bound_number}, but make sure your Percentiles 10 and 5 are lower than or equal to {lower_bound_number}."
         else:
-            lower_bound_message = f"The outcome can not be lower than {lower_bound_number}, so make your Percentile 60 higher than {lower_bound_number}, but make your Percentiles 10 and 5 equal to {lower_bound_number}."
+            lower_bound_message = f"The outcome can not be lower than {lower_bound_number}, so make your Percentile 80 higher than {lower_bound_number}, but make your Percentile 5 equal to {lower_bound_number}."
 
         return upper_bound_message, lower_bound_message
 
@@ -374,7 +374,7 @@ if __name__ == "__main__":
                 allowed_tries=2,
             ),
             "forecaster": GeneralLlm(
-                model="openrouter/openai/gpt-5",
+                model="openrouter/openai/gpt-5.2",
                 # model="openrouter/openai/gpt-5-mini",
                 temperature=0.3,
                 timeout=40,
