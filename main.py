@@ -27,7 +27,6 @@ from forecasting_tools import (
 
 import utils
 from prompts import loader
-from prompts import loader
 
 
 logger = logging.getLogger(__name__)
