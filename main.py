@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import time
+import os
 from datetime import date, datetime
 from typing import Literal, List, Sequence
 
@@ -26,7 +27,6 @@ from forecasting_tools import (
 )
 
 import utils
-from prompts import loader
 from prompts import loader
 
 
@@ -412,7 +412,7 @@ if run_mode == "aib_tournament":
     today = date.today().isoformat()
 
     questions = MetaculusApi.get_all_open_questions_from_tournament(
-        32916#MetaculusApi.CURRENT_AI_COMPETITION_ID
+        os.getenv("CURRENT_AI_COMPETITION_ID")
     )
     reports = asyncio.run(
         bot.forecast_questions(questions, prediction_date_dict, return_exceptions=True)
