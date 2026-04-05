@@ -76,6 +76,7 @@ jobs:
         env:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CURRENT_AI_COMPETITION_ID: ${{ vars.CURRENT_AI_COMPETITION_ID }}
       - name: Upload data artifact
         uses: actions/upload-artifact@v4
         with:
